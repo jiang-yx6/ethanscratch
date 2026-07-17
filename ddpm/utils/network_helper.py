@@ -70,15 +70,18 @@ class SinusoidalPositionEmbeddings(nn.Module):
     
 
 def extract(a, t, x_shape):
+    """
+    从给定的张量a中检索特定的元素，t是一个包含要检索的索引的张量
+    """
     batch_size = t.shape[0]
     out = a.gather(-1, t.cpu())
     return out.reshape(batch_size, *((1,) * (len(x_shape) - 1))).to(t.device)
 
 
 reverse_transform = Compose([
-     Lambda(lambda t: (t + 1) / 2),
+     Lambda(lambda t: (t + 1) / 2), #从[-1,1]缩放到[0,1]
      Lambda(lambda t: t.permute(1, 2, 0)), # CHW to HWC
-     Lambda(lambda t: t * 255.),
-     Lambda(lambda t: t.numpy().astype(np.uint8)),
-     ToPILImage(),
+     Lambda(lambda t: t * 255.),   #缩放到[0-255]
+     Lambda(lambda t: t.numpy().astype(np.uint8)), #转化成numpy数组
+     ToPILImage(), #转为PIL图像
 ])
