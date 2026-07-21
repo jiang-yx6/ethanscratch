@@ -1,6 +1,7 @@
 from utils.network_helper import *
 from diffusionModels.simple_diffusion import VarianceSchedule
 from torch.nn import functional as F
+import tqdm
 
 class DiffusionModel(nn.Module):
     def __init__(self,
@@ -58,3 +59,40 @@ class DiffusionModel(nn.Module):
             raise NotImplementedError()
         
         return loss
+
+    @torch.no_grad()
+    def p_sample(self, x, t, t_index):
+        """
+        反向去噪
+        """
+        betas_t = extract(self.betas,t,x.shape)
+        sqrt_one_minus_alphas_cumprod_t =  extract(self.sqrt_one_minus_alphas_cumprod, t, x.shape)
+        sqrt_recip_alphas_t = extract(self.sqrt_recip_alphas, t, x.shape)
+
+        model_mean = (x - self.denoise_model(x, t) * betas_t / sqrt_one_minus_alphas_cumprod_t) * sqrt_recip_alphas_t
+
+        if t_index == 0:
+            return model_mean
+        
+        else:
+            posterior_variance_t = extract(self.posterior_variance,t,x.shape)
+            noise = torch.rand_like(x)
+            return model_mean + torch.sqrt(posterior_variance_t) * noise
+    
+    @torch.no_grad()
+    def p_sample_loop(self, shape):
+        device = next(self.denoise_model.parameters()).device
+        batch = shape[0]
+
+        img = torch.randn(shape,device=device)
+        imgs = []
+        for i in tqdm(reversed(range(0,self.timesteps)), desc="sampling loop time step", total=self.timesteps):
+            img = self.p_sample(img, torch.full((batch,),i,device=device, dtype=torch.long), i)
+            imgs.append(img.cpu().numpy())
+        return imgs
+    
+    @torch.no_grad()
+    def sample(self, image_size, batch_size=16, channels=3):
+        #return self.p_sample_loop
+        pass
+    
